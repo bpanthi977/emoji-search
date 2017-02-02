@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Emoji Search
+Comment=Emoji Search for Ubuntu
+Icon=emoji-search
+Exec=emoji-search
+Terminal=false
+Type=Application
+NoDisplay=false
+

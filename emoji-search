@@ -1,0 +1,140 @@
+#!/usr/bin/python2.7
+
+import os
+from os.path import expanduser
+from collections import OrderedDict
+import json
+
+# Import GTK
+from gi import require_version
+require_version('Gtk', '3.0')
+require_version('Notify', '0.7')
+from gi.repository import Gtk, GLib, Gdk, GdkPixbuf
+
+
+# Where is the data?
+directories = [expanduser("~") + "/.local/share/emoji-search", "/usr/local/share/emoji-search",  os.path.dirname(os.path.realpath(__file__)), "/usr/share/emoji-search"]
+for d in directories:
+    if os.path.isdir(d):
+        directory = d;
+        break
+
+
+# Search feature
+searchbuilder = None
+search_window = None
+
+
+def open_search_window():
+    global searchbuilder
+    global search_window
+    # Build window only once
+    try:
+        search_window.show_all()
+        search_window.present()
+        search_window.grab_focus()
+    except:
+        # Build window
+        searchbuilder = Gtk.Builder()
+        searchbuilder.add_from_file(directory + "/assets/chooser.glade")
+        searchbuilder.connect_signals(SearchHandler())
+        search_window = searchbuilder.get_object("search_window")
+        search_window.show_all()
+        search_window.present()
+        search_window.grab_focus()
+        searchbuilder.get_object("search").grab_focus()
+        search_window.connect('destroy', Gtk.main_quit)
+
+    Gtk.main()
+
+
+# Sorted_data
+with open(directory + "/assets/emoji.json") as json_file:
+    json_data = json.load(json_file)
+
+    def orderfunc(tup):
+        key, d = tup
+        return int(d["emoji_order"])
+    sorted_data = sorted(json_data.items(), key=orderfunc)
+    sorted_data = OrderedDict(sorted_data)
+
+
+searchresults = None
+selectionChanged = False
+
+
+class SearchHandler:
+    def onSearchChanged(self, search):
+        global searchresults
+        search = searchbuilder.get_object("search").get_text()
+        iconstore = searchbuilder.get_object("iconstore")
+        iconstore.clear()
+        if search == "":
+            # No search results return
+            return
+        numfound = 0
+        searchresults = []
+        for i in sorted_data:
+            match = False
+            for keyword in sorted_data[i]["keywords"]:
+                if keyword.find(search) > -1:
+                    match = True
+            if sorted_data[i]["name"].find(search) > -1:
+                match = True
+            if match:
+                numfound += 1
+                if numfound > 50:
+                    return
+                searchresults.append(sorted_data[i])
+                emoji_name = sorted_data[i]["name"]
+                emoji_image = GdkPixbuf.Pixbuf.new_from_file_at_size(directory + "/assets/svg/" + sorted_data[i]["unicode"] + ".svg", 24, 24)
+                emoji_code = sorted_data[i]["unicode"]
+                iconstore.append([emoji_image, emoji_code, emoji_name])
+
+    def onIconActivated(self, icon, index):
+        global searchresults
+        item_response(self, searchresults[int(index.to_string())])       
+    def onSelectionChanged(self, data):
+        global selectionChanged
+        selectionChanged = True
+
+    def onKeyReleased(self, window, event):
+        global selectionChanged
+        if event.keyval == Gdk.KEY_Escape:
+            window.destroy()
+        elif event.keyval == Gdk.KEY_Down:
+            searchbuilder.get_object("iconview").grab_focus()
+        elif event.keyval == Gdk.KEY_Up and selectionChanged is False:
+            searchbuilder.get_object("search").grab_focus()
+        selectionChanged = False
+
+    def onOutFocus(self, window, data):
+        window.destroy()
+
+
+# Click response
+text = ""
+
+
+def item_response(self, w):
+
+    # Copy character to clipboard
+    chars = w["unicode"].split("-")
+    output = ""
+    for char in chars:
+        output = output + '\\U' + (char.zfill(8))    
+    clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
+    global text
+    text = text + output
+    GLib.idle_add(clipboard.set_text,text.decode('unicode-escape'), -1)
+
+    # Show copied character in copied section
+    global searchbuilder
+    copied_iconstore = searchbuilder.get_object("copied_iconstore")   
+    emoji_name = w["name"]
+    emoji_code = w["unicode"]
+    emoji_image = GdkPixbuf.Pixbuf.new_from_file_at_size(directory + "/assets/svg/" + emoji_code + ".svg", 24, 24)
+    copied_iconstore.append([emoji_image, emoji_code, emoji_name])
+
+open_search_window()
+
