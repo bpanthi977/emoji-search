@@ -7,7 +7,7 @@ This project is proudly using emoji data from the [Emoji One](http://emojione.co
 
 ###  Standalone installer (should work on any distro!)
 
-This method does not require root access. If you run it as root, the picker will be installed for all users.
+This method does not require root access. If you run it as root, the searcher will be installed for all users.
 
   1. Clone the repository and cd into it
   2. Run `./install.sh`
